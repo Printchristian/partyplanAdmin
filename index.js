@@ -1,159 +1,124 @@
-// === Constants ===
 const BASE = "https://fsa-crud-2aa9294fe819.herokuapp.com/api";
-const COHORT = ""; // Make sure to change this!
+const COHORT = "/2504-FTB-ET-WEB-FT";
 const API = BASE + COHORT;
 
 // === State ===
 let parties = [];
-let selectedParty;
-let rsvps = [];
-let guests = [];
+let selectedParty = null;
 
-/** Updates state with all parties from the API */
+// === API Functions ===
 async function getParties() {
-  try {
-    const response = await fetch(API + "/events");
-    const result = await response.json();
-    parties = result.data;
-    render();
-  } catch (e) {
-    console.error(e);
-  }
+  const res = await fetch(API + "/events");
+  const data = await res.json();
+  parties = data.data;
+  render();
 }
 
-/** Updates state with a single party from the API */
-async function getParty(id) {
-  try {
-    const response = await fetch(API + "/events/" + id);
-    const result = await response.json();
-    selectedParty = result.data;
-    render();
-  } catch (e) {
-    console.error(e);
-  }
+async function createParty(party) {
+  await fetch(API + "/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(party),
+  });
+  await getParties();
 }
 
-/** Updates state with all RSVPs from the API */
-async function getRsvps() {
-  try {
-    const response = await fetch(API + "/rsvps");
-    const result = await response.json();
-    rsvps = result.data;
-    render();
-  } catch (e) {
-    console.error(e);
-  }
+async function deleteParty(id) {
+  await fetch(API + "/events/" + id, { method: "DELETE" });
+  selectedParty = null;
+  await getParties();
 }
 
-/** Updates state with all guests from the API */
-async function getGuests() {
-  try {
-    const response = await fetch(API + "/guests");
-    const result = await response.json();
-    guests = result.data;
-    render();
-  } catch (e) {
-    console.error(e);
-  }
+async function selectParty(id) {
+  const res = await fetch(API + "/events/" + id);
+  const data = await res.json();
+  selectedParty = data.data;
+  render();
 }
 
 // === Components ===
+function NewPartyForm() {
+  const form = document.createElement("form");
 
-/** Party name that shows more details about the party when clicked */
-function PartyListItem(party) {
-  const $li = document.createElement("li");
+  const name = document.createElement("input");
+  name.placeholder = "Party Name";
+  name.required = true;
 
-  if (party.id === selectedParty?.id) {
-    $li.classList.add("selected");
-  }
+  const desc = document.createElement("input");
+  desc.placeholder = "Description";
+  desc.required = true;
 
-  $li.innerHTML = `
-    <a href="#selected">${party.name}</a>
-  `;
-  $li.addEventListener("click", () => getParty(party.id));
-  return $li;
-}
+  const date = document.createElement("input");
+  date.type = "date";
+  date.required = true;
 
-/** A list of names of all parties */
-function PartyList() {
-  const $ul = document.createElement("ul");
-  $ul.classList.add("parties");
+  const location = document.createElement("input");
+  location.placeholder = "Location";
+  location.required = true;
 
-  const $parties = parties.map(PartyListItem);
-  $ul.replaceChildren(...$parties);
+  const button = document.createElement("button");
+  button.textContent = "Add Party";
+  button.type = "submit";
 
-  return $ul;
-}
-
-/** Detailed information about the selected party */
-function SelectedParty() {
-  if (!selectedParty) {
-    const $p = document.createElement("p");
-    $p.textContent = "Please select a party to learn more.";
-    return $p;
-  }
-
-  const $party = document.createElement("section");
-  $party.innerHTML = `
-    <h3>${selectedParty.name} #${selectedParty.id}</h3>
-    <time datetime="${selectedParty.date}">
-      ${selectedParty.date.slice(0, 10)}
-    </time>
-    <address>${selectedParty.location}</address>
-    <p>${selectedParty.description}</p>
-    <GuestList></GuestList>
-  `;
-  $party.querySelector("GuestList").replaceWith(GuestList());
-
-  return $party;
-}
-
-/** List of guests attending the selected party */
-function GuestList() {
-  const $ul = document.createElement("ul");
-  const guestsAtParty = guests.filter((guest) =>
-    rsvps.find(
-      (rsvp) => rsvp.guestId === guest.id && rsvp.eventId === selectedParty.id
-    )
-  );
-
-  // Simple components can also be created anonymously:
-  const $guests = guestsAtParty.map((guest) => {
-    const $guest = document.createElement("li");
-    $guest.textContent = guest.name;
-    return $guest;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createParty({
+      name: name.value,
+      description: desc.value,
+      date: date.value,
+      location: location.value,
+    });
+    form.reset();
   });
-  $ul.replaceChildren(...$guests);
 
-  return $ul;
+  form.append(name, desc, date, location, button);
+  return form;
+}
+
+function PartyList() {
+  const ul = document.createElement("ul");
+  parties.forEach((party) => {
+    const li = document.createElement("li");
+    li.textContent = party.name;
+    li.addEventListener("click", () => selectParty(party.id));
+    ul.appendChild(li);
+  });
+  return ul;
+}
+
+function SelectedParty() {
+  const section = document.createElement("section");
+  if (!selectedParty) {
+    section.textContent = "Select a party to see details.";
+    return section;
+  }
+
+  section.innerHTML = `
+    <h3>${selectedParty.name}</h3>
+    <p>${selectedParty.description}</p>
+    <p>Date: ${selectedParty.date.slice(0, 10)}</p>
+    <p>Location: ${selectedParty.location}</p>
+  `;
+
+  const del = document.createElement("button");
+  del.textContent = "Delete Party";
+  del.addEventListener("click", () => deleteParty(selectedParty.id));
+
+  section.appendChild(del);
+  return section;
 }
 
 // === Render ===
 function render() {
-  const $app = document.querySelector("#app");
-  $app.innerHTML = `
-    <h1>Party Planner</h1>
-    <main>
-      <section>
-        <h2>Upcoming Parties</h2>
-        <PartyList></PartyList>
-      </section>
-      <section id="selected">
-        <h2>Party Details</h2>
-        <SelectedParty></SelectedParty>
-      </section>
-    </main>
-  `;
-
-  $app.querySelector("PartyList").replaceWith(PartyList());
-  $app.querySelector("SelectedParty").replaceWith(SelectedParty());
+  const app = document.querySelector("#app");
+  app.innerHTML = "";
+  app.append(
+    NewPartyForm(),
+    document.createElement("hr"),
+    PartyList(),
+    SelectedParty()
+  );
 }
 
-async function init() {
-  await getParties();
-  await getRsvps();
-  await getGuests();
-  render();
-}
-
-init();
+// === Init ===
+getParties();
